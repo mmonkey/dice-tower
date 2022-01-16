@@ -155,7 +155,7 @@ def generate_report_for_week(videos, board_games, week, year, file_name):
     for video in weeks_videos:
         rows.append([
             video["assocItem"]["name"],
-            video["assocItem"]["rating"],
+            video["assocItem"]["rating"] if video["assocItem"]["rating"] > 0 else "",
             "",
             video["assocItem"]["comment"],
             "https://boardgamegeek.com{}".format(video["assocItem"]["href"]),
