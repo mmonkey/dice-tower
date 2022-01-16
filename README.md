@@ -24,3 +24,10 @@ $ python generate_look_back_report.py <bgg-user-name> --week 5 --year 2022
 | user | string | N/A | Required. The BGG username to generate a report for. |
 | `--week` | number or string | "current" | The week to look back from. |
 | `--year` | number | 2022 (or current year) | The year to look back from. |
+
+
+### Known Issues
+
+Currently, there is a [known issue](https://github.com/lcosmin/boardgamegeek/issues/67) with one of the dependancies of
+this repository. [The fix](https://github.com/lcosmin/boardgamegeek/pull/68) must be manually applied for things to work
+correctly.
