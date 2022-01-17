@@ -40,6 +40,6 @@ $ python generate_look_back_report.py <bgg-user-name> --month all --year 2022
 
 ### Known Issues
 
-Currently, there is a [known issue](https://github.com/lcosmin/boardgamegeek/issues/67) with one of the dependancies of
+Currently, there is a [known issue](https://github.com/lcosmin/boardgamegeek/issues/67) with one of the dependencies of
 this repository. [The fix](https://github.com/lcosmin/boardgamegeek/pull/68) must be manually applied for things to work
 correctly.
