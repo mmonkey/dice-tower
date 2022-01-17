@@ -86,29 +86,45 @@ def fetch_users_board_games(bgg, user, videos):
         exit(1)
 
 
-def get_video_from_weeks_in_years(videos, weeks, years):
+def filter_videos(videos, year_range, date_range, date_format):
     results = []
     for video in videos:
         date = datetime.fromisoformat(video["postdate"])
-        if int(date.strftime("%Y")) in years and int(date.strftime("%U")) in weeks:
+        if int(date.strftime("%Y")) in year_range and int(date.strftime(date_format)) in date_range:
             results.append(video)
 
     return results
 
 
-def get_weeks(week_value, year):
+def get_date_filter(year_value, month_value=None, week_value=None):
+    if month_value is None and week_value is None:
+        month_value = "current"
+
+    date_format = "%m"
+    if month_value == "current":
+        return [int(datetime.now().strftime("%m"))], date_format
+
+    if month_value == "all":
+        return range(1, 12), date_format
+
     try:
-        if week_value == "current":
-            return [int(datetime.now().strftime("%U"))]
+        if int(month_value) > 0:
+            return [int(month_value)], date_format
+    except ValueError:
+        print("Invalid month provided, falling back to use week")
 
-        if week_value == "all":
-            num_weeks_in_year = datetime(year=year, month=12, day=31).strftime("%U")
-            return range(1, int(num_weeks_in_year))
+    date_format = "%U"
+    if week_value == "current":
+        return [int(datetime.now().strftime("%U"))], date_format
 
-        return [int(week_value)]
+    if week_value == "all":
+        num_weeks_in_year = datetime(year=year_value, month=12, day=31).strftime("%U")
+        return range(1, int(num_weeks_in_year)), date_format
 
-    except Exception as e:
-        print("There was an error parsing weeks: {}".format(e))
+    try:
+        return [int(week_value)], date_format
+    except ValueError as e:
+        print("Invalid week provided: {}".format(e))
         exit(1)
 
 
@@ -121,13 +137,13 @@ def get_board_game_ids_in_chunks(videos):
     return [board_game_ids[i:i + 100] for i in range(0, len(board_game_ids), 100)]
 
 
-def generate_report_for_week(videos, board_games, week, year, file_name):
+def generate_report(videos, board_games, year, period, date_format, file_name):
     print("Generating Look Back Report: {}".format(file_name))
 
     weeks_videos = []
     for video in videos:
         date = datetime.fromisoformat(video["postdate"])
-        if int(date.strftime("%Y")) == year and int(date.strftime("%U")) == week:
+        if int(date.strftime("%Y")) == year and int(date.strftime(date_format)) == period:
             matched = [game for game in board_games if str(game.id) == video["assocItem"]["id"]]
 
             # Add user's rating to video details
@@ -151,8 +167,9 @@ def generate_report_for_week(videos, board_games, week, year, file_name):
 
         print(ratings)
 
-    rows = [["Board Game", "Current Rating", "New Rating", "Comment", "BGG Link", "Date Added", "Video URL"]]
+    rows = [["Game", "Rating", "New Rating", "Comment", "BGG Link", "Date Added", "Video URL", "YT Description"]]
     for video in weeks_videos:
+        video_url = fetch_video_url(video["id"])
         rows.append([
             video["assocItem"]["name"],
             video["assocItem"]["rating"] if video["assocItem"]["rating"] > 0 else "",
@@ -160,7 +177,8 @@ def generate_report_for_week(videos, board_games, week, year, file_name):
             video["assocItem"]["comment"],
             "https://boardgamegeek.com{}".format(video["assocItem"]["href"]),
             datetime.fromisoformat(video["postdate"]).strftime("%Y-%m-%d"),
-            fetch_video_url(video["id"])
+            video_url,
+            "{}: {}".format(video["assocItem"]["name"], video_url)
         ])
 
     with open(os.path.join(os.getcwd(), "out", file_name), "w", newline="", encoding="utf-8") as csv_file:
@@ -172,18 +190,18 @@ def run():
     # Parse command arguments
     parser = ArgumentParser()
     parser.add_argument("user", type=str, help="BoardGameGeek user name.")
-    parser.add_argument("-w", "--week", required=False, help="Specifies a week of the year to filter videos on. "
-                                                             "Values may include a week number, \"current\" or "
-                                                             "\"all\". Defaults to the current week.")
+    parser.add_argument("-m", "--month", required=False, help="Specifies the month to look back from. Defaults to the "
+                                                              "current month")
+    parser.add_argument("-w", "--week", required=False, help="Specifies the week to look back from. Values may "
+                                                             "include a week number, \"current\" or \"all\".")
     parser.add_argument("-y", "--year", type=int, required=False, help="Specifies the year to look back from. "
                                                                        "Defaults to the current year.")
     args = parser.parse_args()
 
     # Determine which dates to look back from
-    week_value = args.week if args.week is not None else "current"
     year_value = args.year if args.year is not None else datetime.now().year
-    weeks = get_weeks(week_value, year_value)
-    years = [year_value - 1, year_value - 5, year_value - 10]
+    year_range = [year_value - 1, year_value - 5, year_value - 10]
+    (date_range, date_format) = get_date_filter(year_value, month_value=args.month, week_value=args.week)
 
     # Fetch data
     bgg = BGGClient()
@@ -191,20 +209,28 @@ def run():
     videos = fetch_all_videos_for_user(user)
 
     # Filter videos by week(s) from 1 year ago, 5 years ago, and 10 years ago
-    filtered_videos = get_video_from_weeks_in_years(videos, weeks, years)
+    filtered_videos = filter_videos(videos, year_range, date_range, date_format)
 
     # Get board games associated with the filtered videos
     games = fetch_users_board_games(bgg, user, filtered_videos)
 
     # Generate look back csv files
     os.makedirs(os.path.join(os.getcwd(), "out"), exist_ok=True)
-    for year in years:
-        for week in weeks:
-            date = datetime.strptime("{}-W{}-w3".format(year_value, week), "%Y-W%U-w%w")
-            period = int(year_value) - int(year)
-            suffix = "{}-year{}-ago".format(period, "s" if period > 1 else "")
-            file_name = "look-back-{}--{}.csv".format(date.strftime("%Y-%m-%d"), suffix)
-            generate_report_for_week(filtered_videos, games, week, year, file_name)
+    for year in year_range:
+        for period in date_range:
+
+            date = datetime.now()
+            if date_format == "%m":
+                date = datetime.strptime("{}-{}".format(year_value, period), "%Y-%m")
+            if date_format == "%U":
+                date = datetime.strptime("{}-W{}-w0".format(year_value, period), "%Y-W%U-w%w")
+
+            years_ago = int(year_value) - int(year)
+            suffix = "{}-year{}-ago".format(years_ago, "s" if years_ago > 1 else "")
+
+            file_name_date_format = "%Y-%b" if date_format == "%m" else "%Y-%m-%d"
+            file_name = "look-back-{}--{}.csv".format(date.strftime(file_name_date_format), suffix)
+            generate_report(filtered_videos, games, year, period, date_format, file_name)
 
 
 run()
