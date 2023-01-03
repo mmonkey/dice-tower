@@ -25,6 +25,7 @@ $ python generate_look_back_report.py <bgg-user-name> --month 5 --year 2022
 Generate look back reports for all months, 1 year, 5 years and 10 years before 2022: 
 ```
 $ python generate_look_back_report.py <bgg-user-name> --month all --year 2022
+$ python generate_look_back_report.py TomVasel --month all --year 2023
 ```
 
 

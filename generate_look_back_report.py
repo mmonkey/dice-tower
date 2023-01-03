@@ -105,7 +105,7 @@ def get_date_filter(year_value, month_value=None, week_value=None):
         return [int(datetime.now().strftime("%m"))], date_format
 
     if month_value == "all":
-        return range(1, 12), date_format
+        return range(1, 13), date_format
 
     try:
         if int(month_value) > 0:
